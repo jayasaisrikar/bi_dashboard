@@ -1,6 +1,6 @@
 # Wayne Enterprises Business Intelligence Dashboard
 
-A full-stack business intelligence dashboard built with FastAPI backend and Next.js frontend, showcasing key insights from Wayne Enterprises' company data.
+A full-stack business intelligence dashboard built with FastAPI backend and Next.js frontend, showcasing key insights from Wayne Enterprises' company data. Please find the link to a demo video here: [link]([url](https://drive.google.com/file/d/1pE_aKn48Q3FWof8PY-9-CHKbs43T_QvO/view?usp=sharing))
 
 ## 🚀 Project Overview
 
