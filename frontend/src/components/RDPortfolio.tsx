@@ -24,28 +24,26 @@ export default function RDPortfolio() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Sample data for demonstration
-    const sampleData: RDPortfolioData = {
-      division_projects: {
-        labels: ['Technology', 'Applied Sciences', 'Aerospace', 'Defense', 'Biotech'],
-        values: [18, 12, 15, 8, 14]
-      },
-      budget_utilization: {
-        categories: ['Clean Energy', 'Advanced Materials', 'AI Research', 'Biotechnology'],
-        allocated: [2800, 2200, 1900, 1500],
-        spent: [2450, 1980, 1710, 1320],
-        utilization: [87.5, 90.0, 90.0, 88.0]
-      },
-      commercialization: {
-        labels: ['Ready for Market', 'In Development', 'Research Phase', 'On Hold'],
-        values: [23, 28, 12, 4]
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/rd-portfolio');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        setData(result);
+      } catch (error) {
+        console.error('Error fetching R&D portfolio data:', error);
+        setData(null);
+      } finally {
+        setLoading(false);
       }
     };
 
-    setTimeout(() => {
-      setData(sampleData);
-      setLoading(false);
-    }, 500);
+    fetchData();
   }, []);
 
   if (loading) {

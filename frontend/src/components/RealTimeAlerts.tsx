@@ -27,69 +27,55 @@ export default function RealTimeAlerts() {
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // Add some sample data for demonstration
-    const sampleAlerts: Alert[] = [
-      {
-        id: '1',
-        type: 'security',
-        severity: 'high',
-        title: 'Increased Activity in The Narrows',
-        description: 'Security incidents up 15% from yesterday',
-        timestamp: new Date().toISOString(),
-        action_required: true
-      },
-      {
-        id: '2',
-        type: 'financial',
-        severity: 'low',
-        title: 'Q4 Revenue Target Achieved',
-        description: '103% of quarterly goal reached',
-        timestamp: new Date(Date.now() - 300000).toISOString(),
-        action_required: false
+    // Fetch initial alerts data
+    const fetchAlerts = async () => {
+      try {
+        const response = await fetch('/api/realtime-alerts');
+        if (response.ok) {
+          const data = await response.json();
+          setAlerts(data.alerts || []);
+        }
+      } catch (error) {
+        console.error('Error fetching alerts:', error);
       }
-    ];
+    };
 
-    const sampleUpdates: SecurityUpdate[] = [
-      {
-        type: 'patrol',
-        timestamp: new Date().toISOString(),
-        district: 'Downtown',
-        incident_count: 2,
-        response_time: 1.8,
-        safety_score: 9.2
-      },
-      {
-        type: 'patrol',
-        timestamp: new Date(Date.now() - 120000).toISOString(),
-        district: 'The Narrows',
-        incident_count: 5,
-        response_time: 2.4,
-        safety_score: 7.8
+    fetchAlerts();
+
+    // Set up WebSocket connection for real-time updates
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'localhost:8000';
+    const wsProtocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
+    const wsUrl = `${wsProtocol}://${backendUrl}/ws/security-updates`;
+    
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      setIsConnected(true);
+      console.log('Connected to real-time updates');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        setLiveUpdates(prev => [update, ...prev.slice(0, 4)]);
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
       }
-    ];
+    };
 
-    setAlerts(sampleAlerts);
-    setLiveUpdates(sampleUpdates);
-    setIsConnected(true);
+    ws.onclose = () => {
+      setIsConnected(false);
+      console.log('Disconnected from real-time updates');
+    };
 
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      const districts = ['Downtown', 'The Narrows', 'Midtown', 'East End', 'West Side'];
-      const randomDistrict = districts[Math.floor(Math.random() * districts.length)];
-      
-      const newUpdate: SecurityUpdate = {
-        type: 'patrol',
-        timestamp: new Date().toISOString(),
-        district: randomDistrict,
-        incident_count: Math.floor(Math.random() * 6),
-        response_time: Math.round((Math.random() * 3 + 1) * 10) / 10,
-        safety_score: Math.round((Math.random() * 3 + 7) * 10) / 10
-      };
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setIsConnected(false);
+    };
 
-      setLiveUpdates(prev => [newUpdate, ...prev.slice(0, 4)]);
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(interval);
+    return () => {
+      ws.close();
+    };
   }, []);
 
   const getAlertIcon = (type: string) => {

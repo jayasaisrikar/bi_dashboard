@@ -19,22 +19,26 @@ export default function EmployeeDistribution() {
   const [view, setView] = useState<'departments' | 'levels'>('departments');
 
   useEffect(() => {
-    // Sample data for demonstration
-    const sampleData: EmployeeDistributionData = {
-      departments: {
-        labels: ['Technology', 'Applied Sciences', 'Security', 'Operations', 'Research', 'Administration'],
-        values: [3200, 2100, 1800, 1500, 1200, 800]
-      },
-      levels: {
-        labels: ['Senior Management', 'Middle Management', 'Senior Staff', 'Junior Staff', 'Interns'],
-        values: [150, 800, 2500, 5200, 950]
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/employee-distribution');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        setData(result);
+      } catch (error) {
+        console.error('Error fetching employee distribution data:', error);
+        setData(null);
+      } finally {
+        setLoading(false);
       }
     };
 
-    setTimeout(() => {
-      setData(sampleData);
-      setLoading(false);
-    }, 500);
+    fetchData();
   }, []);
 
   if (loading) {

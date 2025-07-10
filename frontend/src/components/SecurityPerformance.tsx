@@ -36,11 +36,17 @@ export default function SecurityPerformance() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/security-performance');
+        const response = await fetch('/api/security-performance');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         setData(result);
       } catch (error) {
         console.error('Failed to fetch security performance:', error);
+        setData(null);
       } finally {
         setLoading(false);
       }

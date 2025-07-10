@@ -37,11 +37,17 @@ export default function FinancialTrends() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/financial-trends');
+        const response = await fetch('/api/financial-trends');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         setData(result);
       } catch (error) {
         console.error('Failed to fetch financial trends:', error);
+        setData(null);
       } finally {
         setLoading(false);
       }

@@ -22,11 +22,17 @@ export default function ExecutiveSummary() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/executive-summary');
+        const response = await fetch('/api/executive-summary');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         setData(result);
       } catch (error) {
         console.error('Failed to fetch executive summary:', error);
+        setData(null);
       } finally {
         setLoading(false);
       }

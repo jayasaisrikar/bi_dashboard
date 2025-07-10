@@ -43,11 +43,17 @@ export default function NewsNarrative() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('http://localhost:8000/api/narrative-data');
+        const response = await fetch('/api/narrative-data');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
         setData(result);
       } catch (error) {
         console.error('Failed to fetch narrative data:', error);
+        setData(null);
       } finally {
         setLoading(false);
       }

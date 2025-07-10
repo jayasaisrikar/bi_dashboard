@@ -17,20 +17,26 @@ export default function DivisionPerformance() {
   const [view, setView] = useState<'revenue' | 'profit' | 'margin'>('revenue');
 
   useEffect(() => {
-    // Sample data for demonstration
-    const sampleData: DivisionPerformanceData = {
-      divisions: ['Technology', 'Applied Sciences', 'Aerospace', 'Defense', 'Biotech'],
-      revenue: [8500, 6200, 5800, 4900, 3100],
-      profit: [2100, 1500, 1200, 980, 620],
-      profit_margin: [24.7, 24.2, 20.7, 20.0, 20.0],
-      market_share: [35, 28, 22, 18, 12],
-      customer_satisfaction: [9.2, 8.8, 8.5, 8.7, 9.0]
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/division-performance');
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        setData(result);
+      } catch (error) {
+        console.error('Error fetching division performance data:', error);
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    setTimeout(() => {
-      setData(sampleData);
-      setLoading(false);
-    }, 500);
+    fetchData();
   }, []);
 
   if (loading) {
