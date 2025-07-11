@@ -25,6 +25,7 @@ export default function RealTimeAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [liveUpdates, setLiveUpdates] = useState<SecurityUpdate[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const [wsError, setWsError] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch initial alerts data
@@ -43,38 +44,140 @@ export default function RealTimeAlerts() {
     fetchAlerts();
 
     // Set up WebSocket connection for real-time updates
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'localhost:8000';
-    const wsProtocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
-    const wsUrl = `${wsProtocol}://${backendUrl}/ws/security-updates`;
-    
-    const ws = new WebSocket(wsUrl);
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      console.log('Connected to real-time updates');
-    };
-
-    ws.onmessage = (event) => {
+    const connectWebSocket = () => {
       try {
-        const update = JSON.parse(event.data);
-        setLiveUpdates(prev => [update, ...prev.slice(0, 4)]);
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'localhost:8000';
+        const wsProtocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
+        const wsUrl = `${wsProtocol}://${backendUrl}/ws`;
+        
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          setIsConnected(true);
+          setWsError(null);
+          console.log('Connected to real-time updates');
+        };        ws.onmessage = (event) => {
+          try {
+            const rawUpdate = JSON.parse(event.data);
+            console.log('Received WebSocket data:', rawUpdate);
+            
+            // Check if this is a security update
+            if (rawUpdate.type === 'security_update') {
+              // Validate and transform the data to ensure it has the expected format
+              const update: SecurityUpdate = {
+                type: rawUpdate.type || 'patrol',
+                timestamp: rawUpdate.timestamp || new Date().toISOString(),
+                district: rawUpdate.district || 'Unknown',
+                incident_count: typeof rawUpdate.incident_count === 'number' ? rawUpdate.incident_count : 0,
+                response_time: typeof rawUpdate.response_time === 'number' ? rawUpdate.response_time : 0,
+                safety_score: typeof rawUpdate.safety_score === 'number' ? rawUpdate.safety_score : 0
+              };
+              
+              // Validate timestamp
+              const timestampDate = new Date(update.timestamp);
+              if (isNaN(timestampDate.getTime())) {
+                update.timestamp = new Date().toISOString();
+              }
+              
+              setLiveUpdates(prev => [update, ...prev.slice(0, 4)]);
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+          }
+        };
+
+        ws.onclose = (event) => {
+          setIsConnected(false);
+          if (event.code !== 1000) { // 1000 is normal closure
+            setWsError('Connection closed unexpectedly');
+            console.log('WebSocket closed, attempting to reconnect...');
+            // Attempt to reconnect after 5 seconds
+            reconnectTimeout = setTimeout(() => {
+              connectWebSocket();
+            }, 5000);
+          } else {
+            console.log('WebSocket connection closed normally');
+          }
+        };
+
+        ws.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          setIsConnected(false);
+          setWsError('WebSocket connection failed');
+        };
+
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+        console.error('Error creating WebSocket connection:', error);
+        setIsConnected(false);
+        setWsError('Failed to create WebSocket connection');
       }
     };
 
-    ws.onclose = () => {
-      setIsConnected(false);
-      console.log('Disconnected from real-time updates');
-    };
+    // Try to connect to WebSocket, but don't fail if it doesn't work
+    connectWebSocket();
 
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setIsConnected(false);
-    };
+    // Fallback: Add simulated updates if WebSocket fails to connect
+    const fallbackInterval = setTimeout(() => {
+      if (!isConnected) {
+        console.log('WebSocket connection failed, using simulated updates');
+        setWsError('Using simulated data');
+        
+        // Add some initial simulated updates
+        const initialUpdates: SecurityUpdate[] = [
+          {
+            type: 'security_update',
+            timestamp: new Date().toISOString(),
+            district: 'Downtown',
+            incident_count: 2,
+            response_time: 3.8,
+            safety_score: 9.2
+          },
+          {
+            type: 'security_update',
+            timestamp: new Date(Date.now() - 120000).toISOString(),
+            district: 'The Narrows',
+            incident_count: 3,
+            response_time: 4.1,
+            safety_score: 8.5
+          }
+        ];
+        
+        setLiveUpdates(initialUpdates);
+        
+        // Set up periodic simulated updates
+        const simulationInterval = setInterval(() => {
+          const districts = ['Downtown', 'The Narrows', 'Midtown', 'East End', 'West Side'];
+          const randomDistrict = districts[Math.floor(Math.random() * districts.length)];
+          
+          const newUpdate: SecurityUpdate = {
+            type: 'security_update',
+            timestamp: new Date().toISOString(),
+            district: randomDistrict,
+            incident_count: Math.floor(Math.random() * 6),
+            response_time: Math.round((Math.random() * 4 + 2) * 10) / 10,
+            safety_score: Math.round((Math.random() * 3.5 + 6) * 10) / 10
+          };
+
+          setLiveUpdates(prev => [newUpdate, ...prev.slice(0, 4)]);
+        }, 15000); // Update every 15 seconds
+        
+        return () => {
+          clearInterval(simulationInterval);
+        };
+      }
+    }, 3000); // Wait 3 seconds before falling back
 
     return () => {
-      ws.close();
+      clearTimeout(fallbackInterval);
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (ws) {
+        ws.close(1000); // Normal closure
+      }
     };
   }, []);
 
@@ -112,6 +215,32 @@ export default function RealTimeAlerts() {
     setAlerts(prev => prev.filter(alert => alert.id !== id));
   };
 
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return 'Invalid time';
+      }
+      return date.toLocaleTimeString();
+    } catch (error) {
+      return 'Invalid time';
+    }
+  };
+
+  const formatSafetyScore = (score: number) => {
+    if (typeof score !== 'number' || isNaN(score)) {
+      return 'N/A';
+    }
+    return score.toFixed(1);
+  };
+
+  const formatResponseTime = (time: number) => {
+    if (typeof time !== 'number' || isNaN(time)) {
+      return 'N/A';
+    }
+    return time.toFixed(1);
+  };
+
   return (
     <div>
       {/* Header */}
@@ -127,7 +256,7 @@ export default function RealTimeAlerts() {
             }}
           ></div>
           <span style={{ fontSize: '14px', color: '#6b7280' }}>
-            {isConnected ? 'Connected' : 'Disconnected'}
+            {isConnected ? 'Live Updates' : wsError || 'Connecting...'}
           </span>
         </div>
       </div>
@@ -183,7 +312,7 @@ export default function RealTimeAlerts() {
                         </p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                           <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                            {new Date(alert.timestamp).toLocaleTimeString()}
+                            {formatTimestamp(alert.timestamp)}
                           </span>
                           {alert.action_required && (
                             <span style={{
@@ -263,12 +392,12 @@ export default function RealTimeAlerts() {
                       color: '#6b7280',
                       margin: '0'
                     }}>
-                      {update.incident_count} incidents • {update.response_time}min response • Safety: {update.safety_score}/10
+                      {update.incident_count} incidents • {formatResponseTime(update.response_time)}min response • Safety: {formatSafetyScore(update.safety_score)}/10
                     </p>
                   </div>
                 </div>
                 <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                  {new Date(update.timestamp).toLocaleTimeString()}
+                  {formatTimestamp(update.timestamp)}
                 </span>
               </div>
             ))
